@@ -883,11 +883,11 @@
     <div class="conn-grid" id="conn-grid">
       <div class="conn-card">
         <div class="conn-title">⚡ Worker &amp; Queue Health</div>
-        <div class="conn-state">⏳ รอ feed จาก Mr.1 · <code>/api/health/workers</code></div>
+        <div class="conn-state" id="conn-workers">⏳ เชื่อม feed Mr.1...</div>
       </div>
       <div class="conn-card">
         <div class="conn-title">🌸 Portfolio &amp; Market</div>
-        <div class="conn-state">⏳ รอ feed จาก Ms.2 · <code>/api/mr2/snapshot</code></div>
+        <div class="conn-state" id="conn-portfolio">⏳ เชื่อม feed Ms.2...</div>
       </div>
       <div class="conn-card">
         <div class="conn-title">💪 ป๊ะป๋า Vitals</div>
@@ -1631,6 +1631,40 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
       document.getElementById('freshness').textContent = `อัปเดต ${t}`;
     }
 
+    // Wave 2 — cross-oracle feeds via server-side proxy (graceful offline)
+    async function loadFeeds() {
+      try {
+        const p = await fetchJSON('/dashboard/feed/portfolio');
+        const el = document.getElementById('conn-portfolio');
+        if (p && !p.stale && p.portfolio) {
+          const pl = p.portfolio.pl_today_pct;
+          const plColor = pl >= 0 ? '#4ade80' : '#f87171';
+          const wl = (p.watchlist || []).slice(0, 3)
+            .map(w => `${w.symbol} <span style="color:#8a8a9a">${w.note || w.signal}</span>`).join(' · ');
+          el.innerHTML = `
+            <div style="font-size:19px;font-weight:700;color:#e0e0e0">$${p.portfolio.total_usd} <span style="font-size:12px;color:#8a8a9a">฿${p.portfolio.total_thb}</span></div>
+            <div style="font-size:13px;color:${plColor};margin:2px 0">วันนี้ ${pl >= 0 ? '+' : ''}${pl}%</div>
+            <div style="font-size:11px;color:#8a8a9a">฿${p.fx?.usd_thb}/USD · 🇺🇸 ${p.market?.us_status || '-'}</div>
+            <div style="font-size:11px;color:#6a6a7a;margin-top:5px">${wl}</div>`;
+        } else {
+          el.innerHTML = '🔌 feed offline — เปิด server Ms.2 (port 4003) เพื่อดูข้อมูล';
+        }
+      } catch { /* keep last */ }
+      try {
+        const w = await fetchJSON('/dashboard/feed/workers');
+        const el = document.getElementById('conn-workers');
+        if (w && !w.stale && w.workers) {
+          const alive = w.workers.filter(x => x.status === 'alive').length;
+          const failed = (w.queues || []).reduce((s, q) => s + (q.failed || 0) + (q.dlq || 0), 0);
+          el.innerHTML = `
+            <div style="font-size:15px;color:#e0e0e0">workers: <span style="color:#4ade80">${alive}</span>/${w.workers.length} alive</div>
+            <div style="font-size:12px;color:${failed > 0 ? '#f87171' : '#8a8a9a'};margin-top:3px">queue failed+DLQ: ${failed}</div>`;
+        } else {
+          el.innerHTML = '🔌 feed ยังไม่ต่อ — ตั้ง <code>MR1_FEED_URL</code> (telesale-bot)';
+        }
+      } catch { /* keep last */ }
+    }
+
     // Fleet Status — Mission Control
     async function loadFleet() {
       try {
@@ -1669,10 +1703,12 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
     initSession();
     loadOverview();
     loadFleet();
+    loadFeeds();
     startClock();
     renderHumanGate();
     renderAttention();
     setInterval(loadFleet, 30000); // refresh fleet status every 30s
+    setInterval(loadFeeds, 30000); // refresh cross-oracle feeds every 30s
     setInterval(renderHumanGate, 60000); // refresh human gate every minute
     setInterval(updateSessionStats, 60000); // Update session stats every minute
   </script>

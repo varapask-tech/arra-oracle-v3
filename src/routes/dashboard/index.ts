@@ -7,10 +7,12 @@ import { activityEndpoint } from './activity.ts';
 import { growthEndpoint } from './growth.ts';
 import { sessionStatsEndpoint } from './session-stats.ts';
 import { fleetEndpoint } from './fleet.ts';
+import { feedsEndpoint } from './feeds.ts';
 
 export const dashboardRoutes = new Elysia({ prefix: '/api' })
   .use(summaryEndpoint)
   .use(activityEndpoint)
   .use(growthEndpoint)
   .use(sessionStatsEndpoint)
-  .use(fleetEndpoint);
+  .use(fleetEndpoint)
+  .use(feedsEndpoint);
