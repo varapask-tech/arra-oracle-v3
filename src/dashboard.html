@@ -1158,6 +1158,9 @@
         if (summary.health.fts_status === 'healthy') {
           healthStatus.textContent = 'Healthy';
           healthCard.className = 'stat-card healthy';
+        } else if (summary.health.fts_status === 'empty' || summary.documents.total === 0) {
+          healthStatus.textContent = 'Ready';
+          healthCard.className = 'stat-card';
         } else {
           healthStatus.textContent = 'Degraded';
           healthCard.className = 'stat-card warning';
@@ -1655,9 +1658,10 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
         const el = document.getElementById('conn-workers');
         if (w && !w.stale && w.workers) {
           const alive = w.workers.filter(x => x.status === 'alive').length;
+          const stale = w.workers.length - alive;
           const failed = (w.queues || []).reduce((s, q) => s + (q.failed || 0) + (q.dlq || 0), 0);
           el.innerHTML = `
-            <div style="font-size:15px;color:#e0e0e0">workers: <span style="color:#4ade80">${alive}</span>/${w.workers.length} alive</div>
+            <div style="font-size:15px;color:#e0e0e0"><span style="color:#4ade80">${alive} alive</span>${stale ? ` · <span style="color:#8a8a9a">${stale} stale</span>` : ''}</div>
             <div style="font-size:12px;color:${failed > 0 ? '#f87171' : '#8a8a9a'};margin-top:3px">queue failed+DLQ: ${failed}</div>`;
         } else {
           el.innerHTML = '🔌 feed ยังไม่ต่อ — ตั้ง <code>MR1_FEED_URL</code> (telesale-bot)';
