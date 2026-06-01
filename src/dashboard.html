@@ -25,8 +25,20 @@
     }
 
     .header h1 {
-      font-size: 20px;
-      color: #a78bfa;
+      font-size: 21px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #a78bfa, #fbbf24);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header h1 .brand-sub {
+      font-size: 12px;
+      font-weight: 500;
+      color: #6a6a7a;
+      -webkit-text-fill-color: #6a6a7a;
+      margin-left: 8px;
+      letter-spacing: 0.5px;
     }
 
     .header-right {
@@ -751,14 +763,72 @@
     .fleet-member .name .state { color: #6a6a7a; font-weight: 400; font-size: 12px; }
     .fleet-member .role { font-size: 11px; color: #8a8a9a; }
     .fleet-member .seen { font-size: 10px; color: #6a6a7a; margin-top: 2px; }
+
+    /* Freshness */
+    .freshness { font-size: 11px; color: #6a6a7a; margin-right: 14px; }
+
+    /* Attention-first strip */
+    .attention-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .attention-chip {
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      border: 1px solid transparent;
+    }
+    .attention-chip.green { background: #102a18; color: #4ade80; border-color: #1f5132; }
+    .attention-chip.yellow { background: #2a2410; color: #fbbf24; border-color: #5a4d1a; }
+    .attention-chip.red { background: #2a1212; color: #f87171; border-color: #5a1f1f; animation: pulse 2s infinite; }
+    .attention-chip.gray { background: #1a1a24; color: #8a8a9a; border-color: #2a2a3a; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+    /* Human Gate */
+    .human-gate {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #15151f;
+      border: 1px solid #2a2a3a;
+      border-left: 4px solid #a78bfa;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+    .human-gate.warn { border-left-color: #fbbf24; }
+    .human-gate .hg-icon { font-size: 34px; line-height: 1; }
+    .human-gate .hg-title { font-size: 13px; color: #a78bfa; font-weight: 600; margin-bottom: 3px; }
+    .human-gate .hg-msg { font-size: 15px; color: #e0e0e0; }
+
+    /* Connections (Wave 2) — feed shells */
+    .conn-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .conn-card {
+      background: #12121c;
+      border: 1px dashed #33334a;
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .conn-card .conn-title { font-size: 14px; font-weight: 600; color: #c0c0d0; margin-bottom: 8px; }
+    .conn-card .conn-state { font-size: 12px; color: #6a6a7a; }
+    .conn-card .conn-state code { background: #1a1a28; padding: 1px 5px; border-radius: 4px; color: #8a8a9a; font-size: 11px; }
   </style>
 </head>
 <body>
   <!-- Header -->
   <div class="header">
-    <h1>Oracle Dashboard</h1>
+    <h1>🕳️ Mr.0 <span class="brand-sub">Mission Control · Universe 1412</span></h1>
     <div class="header-right">
       <span class="clock" id="clock"></span>
+      <span class="freshness" id="freshness"></span>
       <span class="session-stats" id="session-stats"></span>
       <span class="version">v0.4.0</span>
     </div>
@@ -776,6 +846,9 @@
 
   <!-- Overview Tab -->
   <div class="tab-content active" id="tab-overview">
+    <!-- Attention-first strip — surfaces only red/yellow; calm when green -->
+    <div class="attention-strip" id="attention-strip"></div>
+
     <!-- Fleet Status — Mission Control -->
     <div class="fleet-panel">
       <div class="fleet-header">🌌 Fleet Status — Universe 1412</div>
@@ -783,6 +856,9 @@
         <div class="loading">Loading fleet...</div>
       </div>
     </div>
+
+    <!-- Human Gate — the person at the center of the universe -->
+    <div class="human-gate" id="human-gate"></div>
 
     <div class="stats-grid" id="stats-grid">
       <div class="stat-card">
@@ -800,6 +876,22 @@
       <div class="stat-card" id="health-card">
         <div class="value" id="health-status">-</div>
         <div class="label">Status</div>
+      </div>
+    </div>
+
+    <!-- Connections (Wave 2) — cross-oracle feeds, wired as they come online -->
+    <div class="conn-grid" id="conn-grid">
+      <div class="conn-card">
+        <div class="conn-title">⚡ Worker &amp; Queue Health</div>
+        <div class="conn-state">⏳ รอ feed จาก Mr.1 · <code>/api/health/workers</code></div>
+      </div>
+      <div class="conn-card">
+        <div class="conn-title">🌸 Portfolio &amp; Market</div>
+        <div class="conn-state">⏳ รอ feed จาก Ms.2 · <code>/api/mr2/snapshot</code></div>
+      </div>
+      <div class="conn-card">
+        <div class="conn-title">💪 ป๊ะป๋า Vitals</div>
+        <div class="conn-state">⏳ รอ Apple Watch webhook</div>
       </div>
     </div>
 
@@ -1056,6 +1148,8 @@
         const summary = await fetchJSON('/dashboard/summary');
 
         document.getElementById('total-docs').textContent = summary.documents.total;
+        dashState.docsTotal = summary.documents.total;
+        renderAttention();
         document.getElementById('total-concepts').textContent = summary.concepts.total;
         document.getElementById('consultations-7d').textContent = summary.activity.consultations_7d;
 
@@ -1492,6 +1586,51 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
       }
     }
 
+    // Mission Control — shared state + attention/human-gate widgets
+    const dashState = { fleet: [], docsTotal: null };
+
+    function bkkHour() {
+      return parseInt(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok', hour: '2-digit', hour12: false }), 10);
+    }
+
+    // Attention-first: surface only red/yellow; calm green when all clear
+    function renderAttention() {
+      const alerts = [];
+      const h = bkkHour();
+      if (h >= 0 && h < 5) alerts.push({ level: 'red', text: '🌙 ดึกแล้วป๊ะป๋า — พักได้แล้วนะ พรุ่งนี้ค่อยต่อ' });
+      const offline = dashState.fleet.filter(m => m.status === 'offline');
+      if (offline.length) alerts.push({ level: 'yellow', text: `⚫ ${offline.length} Oracle offline: ${offline.map(m => m.name).join(', ')}` });
+      if (dashState.docsTotal === 0) alerts.push({ level: 'gray', text: '📭 Oracle ยังไม่มีความรู้ index (DB ว่าง)' });
+      const el = document.getElementById('attention-strip');
+      el.innerHTML = alerts.length
+        ? alerts.map(a => `<div class="attention-chip ${a.level}">${a.text}</div>`).join('')
+        : '<div class="attention-chip green">🟢 ทุกอย่างปกติ — สงบดี</div>';
+    }
+
+    // Human Gate: the person at the center of the universe
+    function renderHumanGate() {
+      const h = bkkHour();
+      let icon, msg, cls = 'ok';
+      if (h >= 0 && h < 5) { icon = '🌙'; msg = 'ดึกมากแล้ว — ร่างกายป๊ะป๋าต้องการพัก พรุ่งนี้ค่อยลุยต่อนะครับ'; cls = 'warn'; }
+      else if (h < 12) { icon = '🌅'; msg = 'อรุณสวัสดิ์ป๊ะป๋า — เริ่มวันด้วยน้ำ 1 แก้วนะครับ'; }
+      else if (h < 18) { icon = '☀️'; msg = 'บ่ายแล้ว — ยืดเส้น จิบน้ำหน่อยป๊ะป๋า'; }
+      else if (h < 22) { icon = '🌆'; msg = 'เย็นแล้ว — อย่าลืมพักสายตาบ้างนะครับ'; }
+      else { icon = '🌙'; msg = 'ค่ำแล้ว — เริ่มเตรียมพักผ่อน นอนให้พอนะป๊ะป๋า'; cls = 'warn'; }
+      const gate = document.getElementById('human-gate');
+      gate.className = 'human-gate ' + cls;
+      gate.innerHTML = `
+        <div class="hg-icon">${icon}</div>
+        <div class="hg-body">
+          <div class="hg-title">Human Gate — ดูแลป๊ะป๋า (pipeline เดินได้เพราะป๊ะป๋ายังแข็งแรง)</div>
+          <div class="hg-msg">${msg}</div>
+        </div>`;
+    }
+
+    function updateFreshness() {
+      const t = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false });
+      document.getElementById('freshness').textContent = `อัปเดต ${t}`;
+    }
+
     // Fleet Status — Mission Control
     async function loadFleet() {
       try {
@@ -1507,6 +1646,9 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
             </div>
           </div>
         `).join('') || '<div class="loading">No fleet data</div>';
+        dashState.fleet = data.members || [];
+        renderAttention();
+        updateFreshness();
       } catch (e) {
         console.error('Fleet error:', e);
       }
@@ -1528,7 +1670,10 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
     loadOverview();
     loadFleet();
     startClock();
+    renderHumanGate();
+    renderAttention();
     setInterval(loadFleet, 30000); // refresh fleet status every 30s
+    setInterval(renderHumanGate, 60000); // refresh human gate every minute
     setInterval(updateSessionStats, 60000); // Update session stats every minute
   </script>
 </body>
