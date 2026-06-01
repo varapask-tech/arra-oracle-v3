@@ -699,6 +699,58 @@
       font-size: 48px;
       margin-bottom: 16px;
     }
+
+    /* Clock */
+    .clock {
+      font-size: 15px;
+      color: #a78bfa;
+      font-variant-numeric: tabular-nums;
+      margin-right: 14px;
+    }
+
+    /* Fleet Status — Mission Control */
+    .fleet-panel {
+      background: #0f0f1a;
+      border: 1px solid #2a2a3a;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+    .fleet-header {
+      font-size: 16px;
+      color: #a78bfa;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .fleet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .fleet-member {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #15151f;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .fleet-member .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .fleet-member .dot.active { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+    .fleet-member .dot.idle { background: #fbbf24; }
+    .fleet-member .dot.offline { background: #5a5a6a; }
+    .fleet-member .emoji { font-size: 26px; line-height: 1; }
+    .fleet-member .info { flex: 1; min-width: 0; }
+    .fleet-member .name { font-size: 15px; font-weight: 600; color: #e0e0e0; }
+    .fleet-member .name .state { color: #6a6a7a; font-weight: 400; font-size: 12px; }
+    .fleet-member .role { font-size: 11px; color: #8a8a9a; }
+    .fleet-member .seen { font-size: 10px; color: #6a6a7a; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -706,6 +758,7 @@
   <div class="header">
     <h1>Oracle Dashboard</h1>
     <div class="header-right">
+      <span class="clock" id="clock"></span>
       <span class="session-stats" id="session-stats"></span>
       <span class="version">v0.4.0</span>
     </div>
@@ -723,6 +776,14 @@
 
   <!-- Overview Tab -->
   <div class="tab-content active" id="tab-overview">
+    <!-- Fleet Status — Mission Control -->
+    <div class="fleet-panel">
+      <div class="fleet-header">🌌 Fleet Status — Universe 1412</div>
+      <div class="fleet-grid" id="fleet-grid">
+        <div class="loading">Loading fleet...</div>
+      </div>
+    </div>
+
     <div class="stats-grid" id="stats-grid">
       <div class="stat-card">
         <div class="value" id="total-docs">-</div>
@@ -1048,7 +1109,7 @@
         // Activity
         const activity = await fetchJSON('/dashboard/activity?days=7');
 
-        document.getElementById('consultations-list').innerHTML = activity.consultations.map(c => `
+        document.getElementById('consultations-list').innerHTML = (activity.consultations || []).map(c => `
           <div class="activity-item">
             <div class="query">${c.decision}</div>
             <div class="meta">
@@ -1058,7 +1119,7 @@
           </div>
         `).join('') || '<div class="loading">No consultations</div>';
 
-        document.getElementById('searches-list').innerHTML = activity.searches.map(s => `
+        document.getElementById('searches-list').innerHTML = (activity.searches || []).map(s => `
           <div class="activity-item">
             <div class="query">${s.query}</div>
             <div class="meta">
@@ -1069,7 +1130,7 @@
           </div>
         `).join('') || '<div class="loading">No searches</div>';
 
-        document.getElementById('learnings-list').innerHTML = activity.learnings.map(l => `
+        document.getElementById('learnings-list').innerHTML = (activity.learnings || []).map(l => `
           <div class="activity-item">
             <div class="query">${l.pattern_preview}</div>
             <div class="meta">
@@ -1081,10 +1142,11 @@
 
         // Growth
         const growth = await fetchJSON('/dashboard/growth?period=week');
-        const maxActivity = Math.max(...growth.data.map(d => d.consultations + d.searches + d.documents)) || 1;
+        const growthData = growth.data || [];
+        const maxActivity = Math.max(...growthData.map(d => d.consultations + d.searches + d.documents)) || 1;
         document.getElementById('growth-chart').innerHTML = `
           <div class="growth-chart">
-            ${growth.data.map(d => {
+            ${growthData.map(d => {
               const total = d.consultations + d.searches + d.documents;
               const height = (total / maxActivity) * 100;
               return `<div class="growth-bar">
@@ -1430,9 +1492,43 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
       }
     }
 
+    // Fleet Status — Mission Control
+    async function loadFleet() {
+      try {
+        const data = await fetchJSON('/dashboard/fleet');
+        document.getElementById('fleet-grid').innerHTML = (data.members || []).map(m => `
+          <div class="fleet-member">
+            <div class="dot ${m.status}"></div>
+            <span class="emoji">${m.emoji}</span>
+            <div class="info">
+              <div class="name">${m.name} <span class="state">(${m.status})</span></div>
+              <div class="role">${m.role}</div>
+              <div class="seen">last seen: ${m.last_seen ? formatTime(m.last_seen) : 'never'}</div>
+            </div>
+          </div>
+        `).join('') || '<div class="loading">No fleet data</div>';
+      } catch (e) {
+        console.error('Fleet error:', e);
+      }
+    }
+
+    // Clock — Bangkok GMT+7
+    function startClock() {
+      const el = document.getElementById('clock');
+      function tick() {
+        const t = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false });
+        el.textContent = `🕐 ${t} GMT+7`;
+      }
+      tick();
+      setInterval(tick, 1000);
+    }
+
     // Initialize
     initSession();
     loadOverview();
+    loadFleet();
+    startClock();
+    setInterval(loadFleet, 30000); // refresh fleet status every 30s
     setInterval(updateSessionStats, 60000); // Update session stats every minute
   </script>
 </body>

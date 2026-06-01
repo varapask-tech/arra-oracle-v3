@@ -59,6 +59,7 @@ export interface DashboardSummary {
     top: Array<{ name: string; count: number }>;
   };
   activity: {
+    consultations_7d: number;
     searches_7d: number;
     learnings_7d: number;
   };
@@ -75,6 +76,12 @@ export interface HealthResponse {
 }
 
 export interface DashboardActivity {
+  consultations: Array<{
+    decision: string;
+    principles_found: number;
+    patterns_found: number;
+    created_at: string;
+  }>;
   searches: Array<{
     query: string;
     type: string | null;

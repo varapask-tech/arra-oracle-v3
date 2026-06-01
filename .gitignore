@@ -22,6 +22,11 @@ chroma/
 .env.staging
 .env.*.local
 
+# Claude local settings + backups (may contain secrets — never commit)
+.claude/settings.local.json
+.claude/*.bak
+.claude/*.bak.*
+
 # IDE
 .vscode/
 .idea/

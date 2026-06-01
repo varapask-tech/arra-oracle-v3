@@ -5,7 +5,7 @@
  */
 
 import { sql, gt, and, gte, lt, desc } from 'drizzle-orm';
-import { db, oracleDocuments, searchLog, learnLog } from '../db/index.ts';
+import { db, oracleDocuments, searchLog, learnLog, consultLog } from '../db/index.ts';
 import type { DashboardSummary, DashboardActivity, DashboardGrowth } from './types.ts';
 
 /**
@@ -57,6 +57,7 @@ export function handleDashboardSummary(): DashboardSummary {
 
   let searches7d = 0;
   let learnings7d = 0;
+  let consultations7d = 0;
 
   try {
     const searchResult = db.select({ count: sql<number>`count(*)` })
@@ -74,6 +75,14 @@ export function handleDashboardSummary(): DashboardSummary {
     learnings7d = learnResult?.count || 0;
   } catch {}
 
+  try {
+    const consultResult = db.select({ count: sql<number>`count(*)` })
+      .from(consultLog)
+      .where(gt(consultLog.createdAt, sevenDaysAgo))
+      .get();
+    consultations7d = consultResult?.count || 0;
+  } catch {}
+
   // Health status
   const lastIndexedResult = db.select({ lastIndexed: sql<number | null>`max(${oracleDocuments.indexedAt})` })
     .from(oracleDocuments)
@@ -89,6 +98,7 @@ export function handleDashboardSummary(): DashboardSummary {
       top: topConcepts
     },
     activity: {
+      consultations_7d: consultations7d,
       searches_7d: searches7d,
       learnings_7d: learnings7d
     },
@@ -106,6 +116,29 @@ export function handleDashboardSummary(): DashboardSummary {
  */
 export function handleDashboardActivity(days: number = 7): DashboardActivity {
   const since = Date.now() - days * 24 * 60 * 60 * 1000;
+
+  // Recent consultations
+  let consultations: DashboardActivity['consultations'] = [];
+  try {
+    const rows = db.select({
+      decision: consultLog.decision,
+      principlesFound: consultLog.principlesFound,
+      patternsFound: consultLog.patternsFound,
+      createdAt: consultLog.createdAt,
+    })
+      .from(consultLog)
+      .where(gt(consultLog.createdAt, since))
+      .orderBy(desc(consultLog.createdAt))
+      .limit(20)
+      .all();
+
+    consultations = rows.map(row => ({
+      decision: row.decision.substring(0, 120),
+      principles_found: row.principlesFound,
+      patterns_found: row.patternsFound,
+      created_at: new Date(row.createdAt).toISOString(),
+    }));
+  } catch {}
 
   // Recent searches
   let searches: DashboardActivity['searches'] = [];
@@ -157,7 +190,7 @@ export function handleDashboardActivity(days: number = 7): DashboardActivity {
     }));
   } catch {}
 
-  return { searches, learnings, days };
+  return { consultations, searches, learnings, days };
 }
 
 /**

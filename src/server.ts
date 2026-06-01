@@ -187,7 +187,15 @@ const app = new Elysia()
     status: 'ok',
     docs: '/swagger',
     api: '/api',
-  }));
+    dashboard: '/dashboard',
+  }))
+  // Serve the Mission Control dashboard. API_BASE inside the page resolves to
+  // window.location.origin + '/api', so it talks to this same server.
+  .get('/dashboard', () =>
+    new Response(Bun.file(`${import.meta.dir}/dashboard.html`), {
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    }),
+  );
 
 const apiModules = [
   authRoutes,
