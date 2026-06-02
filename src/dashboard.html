@@ -820,6 +820,32 @@
     .conn-card .conn-title { font-size: 14px; font-weight: 600; color: #c0c0d0; margin-bottom: 8px; }
     .conn-card .conn-state { font-size: 12px; color: #6a6a7a; }
     .conn-card .conn-state code { background: #1a1a28; padding: 1px 5px; border-radius: 4px; color: #8a8a9a; font-size: 11px; }
+
+    /* Live Work */
+    .livework-panel {
+      background: #0f0f1a;
+      border: 1px solid #2a2a3a;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+    .lw-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #1a1a28;
+      font-size: 13px;
+    }
+    .lw-row:last-child { border-bottom: none; }
+    .lw-row .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .lw-row .dot.active { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+    .lw-row .dot.idle { background: #fbbf24; }
+    .lw-row .dot.offline { background: #5a5a6a; }
+    .lw-emoji { font-size: 16px; }
+    .lw-name { font-weight: 600; color: #c0c0d0; width: 42px; flex-shrink: 0; }
+    .lw-activity { flex: 1; color: #9a9aa8; font-family: ui-monospace, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lw-age { color: #6a6a7a; font-size: 11px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -855,6 +881,12 @@
       <div class="fleet-grid" id="fleet-grid">
         <div class="loading">Loading fleet...</div>
       </div>
+    </div>
+
+    <!-- Live Work — what each Oracle is doing right now (from session transcripts) -->
+    <div class="livework-panel">
+      <div class="fleet-header">⚡ Live Work — กำลังทำอะไรอยู่</div>
+      <div class="livework-list" id="livework-list"><div class="loading">Loading...</div></div>
     </div>
 
     <!-- Human Gate — the person at the center of the universe -->
@@ -1634,6 +1666,28 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
       document.getElementById('freshness').textContent = `อัปเดต ${t}`;
     }
 
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    }
+
+    // Live Work — what each Oracle is doing right now (from session transcripts)
+    async function loadLiveWork() {
+      try {
+        const data = await fetchJSON('/dashboard/live-work');
+        document.getElementById('livework-list').innerHTML = (data.members || []).map(m => {
+          const a = m.age_sec;
+          const age = a == null ? '—' : a < 60 ? `${a}s` : a < 3600 ? `${Math.floor(a / 60)}m` : `${Math.floor(a / 3600)}h`;
+          return `<div class="lw-row">
+            <div class="dot ${m.status}"></div>
+            <span class="lw-emoji">${m.emoji}</span>
+            <span class="lw-name">${m.name}</span>
+            <span class="lw-activity">${escapeHtml(m.activity)}</span>
+            <span class="lw-age">${age}</span>
+          </div>`;
+        }).join('') || '<div class="loading">No data</div>';
+      } catch (e) { console.error('LiveWork error:', e); }
+    }
+
     // Wave 2 — cross-oracle feeds via server-side proxy (graceful offline)
     async function loadFeeds() {
       try {
@@ -1708,11 +1762,13 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
     loadOverview();
     loadFleet();
     loadFeeds();
+    loadLiveWork();
     startClock();
     renderHumanGate();
     renderAttention();
     setInterval(loadFleet, 30000); // refresh fleet status every 30s
     setInterval(loadFeeds, 30000); // refresh cross-oracle feeds every 30s
+    setInterval(loadLiveWork, 15000); // refresh live work every 15s
     setInterval(renderHumanGate, 60000); // refresh human gate every minute
     setInterval(updateSessionStats, 60000); // Update session stats every minute
   </script>
