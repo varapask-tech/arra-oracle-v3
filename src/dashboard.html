@@ -846,6 +846,63 @@
     .lw-name { font-weight: 600; color: #c0c0d0; width: 42px; flex-shrink: 0; }
     .lw-activity { flex: 1; color: #9a9aa8; font-family: ui-monospace, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .lw-age { color: #6a6a7a; font-size: 11px; flex-shrink: 0; }
+
+    /* Fleet Chat */
+    .chat-panel {
+      background: #0f0f1a;
+      border: 1px solid #2a2a3a;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+    .chat-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .chat-tab {
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: #15151f;
+      border: 1px solid #2a2a3a;
+      color: #c0c0d0;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .chat-tab.active { background: #2a2440; border-color: #a78bfa; color: #fff; }
+    .chat-messages {
+      height: 280px;
+      overflow-y: auto;
+      background: #0a0a0f;
+      border: 1px solid #1a1a28;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 10px; font-size: 13px; line-height: 1.45; word-wrap: break-word; white-space: pre-wrap; }
+    .chat-msg.them { background: #1a1a2e; color: #e0e0e0; align-self: flex-start; }
+    .chat-msg.me { background: #2a2440; color: #fff; align-self: flex-end; }
+    .chat-msg .who { font-size: 11px; color: #8a8a9a; margin-bottom: 2px; }
+    .chat-input-row { display: flex; gap: 8px; margin-top: 12px; }
+    .chat-input-row input {
+      flex: 1;
+      background: #15151f;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #e0e0e0;
+      font-size: 14px;
+    }
+    .chat-input-row input:focus { outline: none; border-color: #a78bfa; }
+    .chat-input-row button {
+      background: linear-gradient(90deg, #a78bfa, #8b6ef0);
+      border: none;
+      border-radius: 8px;
+      padding: 10px 22px;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .chat-input-row button:disabled { opacity: 0.5; cursor: default; }
   </style>
 </head>
 <body>
@@ -887,6 +944,17 @@
     <div class="livework-panel">
       <div class="fleet-header">⚡ Live Work — กำลังทำอะไรอยู่</div>
       <div class="livework-list" id="livework-list"><div class="loading">Loading...</div></div>
+    </div>
+
+    <!-- Fleet Chat — talk to any Oracle from the dashboard (Fleet Terminal) -->
+    <div class="chat-panel">
+      <div class="fleet-header">💬 Fleet Chat — คุยกับ Oracle</div>
+      <div class="chat-tabs" id="chat-tabs"></div>
+      <div class="chat-messages" id="chat-messages"><div class="loading">เลือก Oracle ด้านบนเพื่อเริ่มแชท</div></div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="พิมพ์ข้อความถึง Oracle แล้วกด Enter..." autocomplete="off" />
+        <button id="chat-send">ส่ง</button>
+      </div>
     </div>
 
     <!-- Human Gate — the person at the center of the universe -->
@@ -1670,6 +1738,56 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
       return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     }
 
+    // Fleet Chat — talk to an Oracle from the dashboard (Discord bot relay)
+    let chatOracle = null;
+    async function loadChatTabs() {
+      try {
+        const oracles = await fetchJSON('/dashboard/chat/oracles');
+        document.getElementById('chat-tabs').innerHTML = oracles
+          .map(o => `<div class="chat-tab" data-oracle="${o.id}">${o.emoji} ${o.name}</div>`).join('');
+        document.querySelectorAll('.chat-tab').forEach(tab =>
+          tab.addEventListener('click', () => selectChat(tab.dataset.oracle)));
+        if (oracles.length) selectChat(oracles[0].id);
+      } catch (e) { console.error('chat tabs', e); }
+    }
+    function selectChat(id) {
+      chatOracle = id;
+      document.querySelectorAll('.chat-tab').forEach(t => t.classList.toggle('active', t.dataset.oracle === id));
+      loadChatMessages();
+    }
+    async function loadChatMessages() {
+      if (!chatOracle) return;
+      try {
+        const data = await fetchJSON(`/dashboard/chat/${chatOracle}`);
+        const box = document.getElementById('chat-messages');
+        const msgs = data.messages || [];
+        if (!msgs.length) {
+          box.innerHTML = `<div class="loading">${data.error ? escapeHtml(data.error) : 'ยังไม่มีข้อความ'}</div>`;
+          return;
+        }
+        box.innerHTML = msgs.map(m => {
+          const mine = /JR|ป๊ะป๋า/i.test(m.author) || m.content.startsWith('🖥️ [ป๊ะป๋า');
+          return `<div class="chat-msg ${mine ? 'me' : 'them'}"><div class="who">${escapeHtml(m.author)}</div>${escapeHtml(m.content)}</div>`;
+        }).join('');
+        box.scrollTop = box.scrollHeight;
+      } catch (e) { console.error('chat msgs', e); }
+    }
+    async function sendChat() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text || !chatOracle) return;
+      const btn = document.getElementById('chat-send');
+      btn.disabled = true; input.value = '';
+      try {
+        await fetch(`${API_BASE}/dashboard/chat/${chatOracle}/send`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: text }),
+        });
+      } catch (e) { console.error('send', e); }
+      btn.disabled = false;
+      setTimeout(loadChatMessages, 800);
+    }
+
     // Live Work — what each Oracle is doing right now (from session transcripts)
     async function loadLiveWork() {
       try {
@@ -1763,12 +1881,16 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
     loadFleet();
     loadFeeds();
     loadLiveWork();
+    loadChatTabs();
+    document.getElementById('chat-send').addEventListener('click', sendChat);
+    document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
     startClock();
     renderHumanGate();
     renderAttention();
     setInterval(loadFleet, 30000); // refresh fleet status every 30s
     setInterval(loadFeeds, 30000); // refresh cross-oracle feeds every 30s
     setInterval(loadLiveWork, 15000); // refresh live work every 15s
+    setInterval(loadChatMessages, 8000); // refresh active chat every 8s
     setInterval(renderHumanGate, 60000); // refresh human gate every minute
     setInterval(updateSessionStats, 60000); // Update session stats every minute
   </script>
