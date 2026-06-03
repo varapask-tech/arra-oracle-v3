@@ -29,11 +29,17 @@ function token(): string {
   return process.env.DISCORD_BOT_TOKEN || '';
 }
 
-async function discord(path: string, init?: RequestInit): Promise<Response> {
+// ป๊ะป๋า's own bot — used to SEND so the message author is "ป๊ะป๋า" (not any
+// Oracle's own bot), letting every Oracle (incl Mr.0) receive + reply.
+function papaToken(): string {
+  return process.env.PAPA_BOT_TOKEN || '';
+}
+
+async function discord(path: string, init?: RequestInit, authToken?: string): Promise<Response> {
   return fetch(`${DISCORD_API}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bot ${token()}`,
+      Authorization: `Bot ${authToken || token()}`,
       'Content-Type': 'application/json',
       ...(init?.headers || {}),
     },
@@ -79,9 +85,9 @@ export const chatEndpoint = new Elysia()
         set.status = 404;
         return { error: 'unknown oracle' };
       }
-      if (!token()) {
+      if (!papaToken()) {
         set.status = 500;
-        return { error: 'no bot token configured' };
+        return { error: 'PAPA_BOT_TOKEN not configured' };
       }
       const text = (body as { content?: string }).content?.trim();
       if (!text) {
@@ -89,10 +95,13 @@ export const chatEndpoint = new Elysia()
         return { error: 'empty message' };
       }
       try {
-        const res = await discord(`/channels/${SHARED_CHANNEL}/messages`, {
-          method: 'POST',
-          body: JSON.stringify({ content: `<@${o.userId}> 🖥️ [ป๊ะป๋า · via Tab] ${text}` }),
-        });
+        // Post as ป๊ะป๋า's bot so the target Oracle (incl Mr.0) sees it from
+        // ป๊ะป๋า — not from its own bot — and replies.
+        const res = await discord(
+          `/channels/${SHARED_CHANNEL}/messages`,
+          { method: 'POST', body: JSON.stringify({ content: `<@${o.userId}> ${text}` }) },
+          papaToken(),
+        );
         if (!res.ok) {
           set.status = 502;
           return { ok: false, error: `discord ${res.status}` };
