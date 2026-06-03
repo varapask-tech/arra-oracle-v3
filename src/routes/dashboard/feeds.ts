@@ -14,6 +14,8 @@ const FEEDS: Record<string, string> = {
   portfolio: process.env.MR2_FEED_URL || 'http://localhost:4003/api/mr2/snapshot',
   // Mr.1 — worker/queue health (telesale-bot). Base URL TBD — set MR1_FEED_URL.
   workers: process.env.MR1_FEED_URL || '',
+  // Mr.4 — ป๊ะป๋า vitals (Apple Watch → Health Auto Export → :4747)
+  vitals: process.env.MR4_FEED_URL || 'http://localhost:4747/api/mr4/vitals',
 };
 
 async function proxyFeed(url: string): Promise<unknown> {
@@ -33,4 +35,7 @@ export const feedsEndpoint = new Elysia()
   })
   .get('/dashboard/feed/workers', () => proxyFeed(FEEDS.workers), {
     detail: { tags: ['dashboard'], menu: { group: 'hidden' }, summary: 'Proxy: Mr.1 worker/queue health' },
+  })
+  .get('/dashboard/feed/vitals', () => proxyFeed(FEEDS.vitals), {
+    detail: { tags: ['dashboard'], menu: { group: 'hidden' }, summary: 'Proxy: Mr.4 ป๊ะป๋า vitals' },
   });

@@ -991,7 +991,7 @@
       </div>
       <div class="conn-card">
         <div class="conn-title">💪 ป๊ะป๋า Vitals</div>
-        <div class="conn-state">⏳ รอ Apple Watch webhook</div>
+        <div class="conn-state" id="conn-vitals">⏳ เชื่อม feed Mr.4...</div>
       </div>
     </div>
 
@@ -1837,6 +1837,18 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
             <div style="font-size:12px;color:${failed > 0 ? '#f87171' : '#8a8a9a'};margin-top:3px">queue failed+DLQ: ${failed}</div>`;
         } else {
           el.innerHTML = '🔌 feed ยังไม่ต่อ — ตั้ง <code>MR1_FEED_URL</code> (telesale-bot)';
+        }
+      } catch { /* keep last */ }
+      try {
+        const v = await fetchJSON('/dashboard/feed/vitals');
+        const el = document.getElementById('conn-vitals');
+        if (v && !v.stale && v.heartRate != null) {
+          const sleep = v.sleepHours != null ? `${v.sleepHours} ชม.` : '—';
+          el.innerHTML = `
+            <div style="font-size:14px;color:#e0e0e0">❤️ ${v.heartRate} bpm · 👣 ${v.steps ?? '—'} · 🔥 ${v.activeEnergy ?? '—'} kcal</div>
+            <div style="font-size:11px;color:#8a8a9a;margin-top:3px">😴 ${sleep} · ⚖️ ${v.weightKg ?? '—'} kg</div>`;
+        } else {
+          el.innerHTML = '🔌 feed offline — เปิด server Mr.4 (:4747)';
         }
       } catch { /* keep last */ }
     }
