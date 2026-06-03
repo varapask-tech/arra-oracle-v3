@@ -1,22 +1,28 @@
 import { Elysia, t } from 'elysia';
 
 /**
- * Fleet Terminal chat — read + send messages to an Oracle's Discord channel,
- * using Mr.0's bot token (Discord REST). Lets ป๊ะป๋า talk to any Oracle from
- * the Mission Control dashboard (Tab/iPad) without leaving the page.
+ * Fleet Terminal chat — talk to any Oracle from the Mission Control dashboard.
+ *
+ * The Discord plugin only delivers bot-authored messages to Oracle sessions in
+ * its BOT_RELAY channels (the shared channel + dev-team). Direct channels drop
+ * bot messages. So Fleet Chat posts into the SHARED channel and @mentions the
+ * target Oracle — the Oracle then receives it (relay-allowed) and replies.
  *
  * Reachable only behind Tailscale/LAN (dashboard has no public exposure).
  */
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
-// Oracle → its direct Discord channel (where that Oracle replies without @)
-const ORACLE_CHANNELS: Record<string, { name: string; emoji: string; channel: string }> = {
-  '0': { name: 'Mr.0', emoji: '🕳️', channel: '1498278390241951744' },
-  '1': { name: 'Mr.1', emoji: '⚡', channel: '1502687083586916402' },
-  '2': { name: 'Ms.2', emoji: '🌸', channel: '1504532620250316920' },
-  '3': { name: 'Ms.3', emoji: '✨', channel: '1509142210619244595' },
-  '4': { name: 'Mr.4', emoji: '💪', channel: '1509142280517451847' },
+// Shared family channel — a BOT_RELAY channel, so Oracle sessions process
+// messages posted here by Mr.0's bot (and we @mention the target Oracle).
+const SHARED_CHANNEL = '1502747339843043388';
+
+const ORACLES: Record<string, { name: string; emoji: string; userId: string }> = {
+  '0': { name: 'Mr.0', emoji: '🕳️', userId: '1498282445345259660' },
+  '1': { name: 'Mr.1', emoji: '⚡', userId: '1496144187131822261' },
+  '2': { name: 'Ms.2', emoji: '🌸', userId: '1504531333098115277' },
+  '3': { name: 'Ms.3', emoji: '✨', userId: '1509139966192779436' },
+  '4': { name: 'Mr.4', emoji: '💪', userId: '1509141768069976164' },
 };
 
 function token(): string {
@@ -36,22 +42,16 @@ async function discord(path: string, init?: RequestInit): Promise<Response> {
 }
 
 export const chatEndpoint = new Elysia()
-  // List the chat-able Oracles
   .get('/dashboard/chat/oracles', () =>
-    Object.entries(ORACLE_CHANNELS).map(([id, o]) => ({ id, name: o.name, emoji: o.emoji })),
+    Object.entries(ORACLES).map(([id, o]) => ({ id, name: o.name, emoji: o.emoji })),
   )
-  // Read recent messages of an Oracle's channel
+  // Read the shared family conversation (where Oracle replies land)
   .get(
     '/dashboard/chat/:oracle',
-    async ({ params, set }) => {
-      const o = ORACLE_CHANNELS[params.oracle];
-      if (!o) {
-        set.status = 404;
-        return { error: 'unknown oracle' };
-      }
+    async () => {
       if (!token()) return { messages: [], error: 'no bot token configured' };
       try {
-        const res = await discord(`/channels/${o.channel}/messages?limit=20`);
+        const res = await discord(`/channels/${SHARED_CHANNEL}/messages?limit=25`);
         if (!res.ok) return { messages: [], error: `discord ${res.status}` };
         const raw = (await res.json()) as Array<Record<string, any>>;
         const messages = raw
@@ -62,19 +62,19 @@ export const chatEndpoint = new Elysia()
             content: m.content || '',
             ts: m.timestamp,
           }))
-          .reverse(); // oldest → newest for display
-        return { oracle: params.oracle, messages };
+          .reverse();
+        return { messages };
       } catch {
         return { messages: [], error: 'discord unreachable' };
       }
     },
     { params: t.Object({ oracle: t.String() }) },
   )
-  // Send a message to an Oracle's channel (as Mr.0's bot, tagged from ป๊ะป๋า via Tab)
+  // Send to the shared channel, @mentioning the target Oracle so it replies
   .post(
     '/dashboard/chat/:oracle/send',
     async ({ params, body, set }) => {
-      const o = ORACLE_CHANNELS[params.oracle];
+      const o = ORACLES[params.oracle];
       if (!o) {
         set.status = 404;
         return { error: 'unknown oracle' };
@@ -89,9 +89,9 @@ export const chatEndpoint = new Elysia()
         return { error: 'empty message' };
       }
       try {
-        const res = await discord(`/channels/${o.channel}/messages`, {
+        const res = await discord(`/channels/${SHARED_CHANNEL}/messages`, {
           method: 'POST',
-          body: JSON.stringify({ content: `🖥️ [ป๊ะป๋า · via Tab] ${text}` }),
+          body: JSON.stringify({ content: `<@${o.userId}> 🖥️ [ป๊ะป๋า · via Tab] ${text}` }),
         });
         if (!res.ok) {
           set.status = 502;
