@@ -903,6 +903,45 @@
       font-size: 14px;
     }
     .chat-input-row button:disabled { opacity: 0.5; cursor: default; }
+
+    /* In-Flight Work board */
+    .wip-panel {
+      background: #0f0f1a;
+      border: 1px solid #2a2a3a;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+    .wip-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid #1a1a28;
+      font-size: 13px;
+    }
+    .wip-item:last-child { border-bottom: none; }
+    .wip-item.done-item { opacity: 0.5; }
+    .wip-stage {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 0;
+      width: 52px;
+      text-align: center;
+      border-radius: 6px;
+      flex-shrink: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .wip-stage.plan { background: #15233a; color: #7ab8ff; }
+    .wip-stage.build { background: #2a2440; color: #a78bfa; }
+    .wip-stage.review { background: #2a2410; color: #fbbf24; }
+    .wip-stage.live { background: #0a2a2a; color: #2dd4bf; }
+    .wip-stage.done { background: #102a18; color: #4ade80; }
+    .wip-owners { font-size: 14px; flex-shrink: 0; }
+    .wip-title { color: #e0e0e0; font-weight: 600; flex-shrink: 0; }
+    .wip-note { color: #8a8a9a; font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wip-blocker { color: #f87171; font-size: 11px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -944,6 +983,12 @@
     <div class="livework-panel">
       <div class="fleet-header">⚡ Live Work — กำลังทำอะไรอยู่</div>
       <div class="livework-list" id="livework-list"><div class="loading">Loading...</div></div>
+    </div>
+
+    <!-- In-Flight Work board — what the fleet is working on now -->
+    <div class="wip-panel">
+      <div class="fleet-header">📋 In-Flight Work — งานที่กำลังทำ</div>
+      <div class="wip-list" id="wip-list"><div class="loading">Loading...</div></div>
     </div>
 
     <!-- Fleet Chat — talk to any Oracle from the dashboard (Fleet Terminal) -->
@@ -1738,6 +1783,28 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
       return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     }
 
+    // In-Flight Work board
+    const WIP_STAGE_ORDER = { live: 0, review: 1, build: 2, plan: 3, done: 4 };
+    const WIP_OWNER_EMOJI = { '0': '🕳️', '1': '⚡', '2': '🌸', '3': '✨', '4': '💪' };
+    async function loadWip() {
+      try {
+        const data = await fetchJSON('/dashboard/wip');
+        const items = (data.items || []).slice()
+          .sort((a, b) => (WIP_STAGE_ORDER[a.stage] ?? 9) - (WIP_STAGE_ORDER[b.stage] ?? 9));
+        document.getElementById('wip-list').innerHTML = items.map(it => {
+          const owners = (it.owner || []).map(o => WIP_OWNER_EMOJI[o] || o).join('');
+          const blocker = it.blocker ? `<span class="wip-blocker">⚠️ ${escapeHtml(it.blocker)}</span>` : '';
+          return `<div class="wip-item ${it.stage === 'done' ? 'done-item' : ''}">
+            <span class="wip-stage ${it.stage}">${escapeHtml(it.stage)}</span>
+            <span class="wip-owners">${owners}</span>
+            <span class="wip-title">${escapeHtml(it.title)}</span>
+            <span class="wip-note">${escapeHtml(it.note || '')}</span>
+            ${blocker}
+          </div>`;
+        }).join('') || '<div class="loading">No work items</div>';
+      } catch (e) { console.error('wip', e); }
+    }
+
     // Fleet Chat — talk to an Oracle from the dashboard (Discord bot relay)
     let chatOracle = null;
     async function loadChatTabs() {
@@ -1893,6 +1960,7 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
     loadFleet();
     loadFeeds();
     loadLiveWork();
+    loadWip();
     loadChatTabs();
     document.getElementById('chat-send').addEventListener('click', sendChat);
     document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
@@ -1902,6 +1970,7 @@ ${activity.learnings.slice(0, 5).map(l => `- ${l.pattern_preview}`).join('\n') |
     setInterval(loadFleet, 30000); // refresh fleet status every 30s
     setInterval(loadFeeds, 30000); // refresh cross-oracle feeds every 30s
     setInterval(loadLiveWork, 15000); // refresh live work every 15s
+    setInterval(loadWip, 30000); // refresh in-flight work board every 30s
     setInterval(loadChatMessages, 8000); // refresh active chat every 8s
     setInterval(renderHumanGate, 60000); // refresh human gate every minute
     setInterval(updateSessionStats, 60000); // Update session stats every minute
